@@ -31,8 +31,8 @@ From: ubuntu:latest
         make \
         gfortran
     cd /tmp
-    wget https://download.open-mpi.org/release/open-mpi/v2.1/openmpi-2.1.5.tar.gz
-    tar -zxf openmpi-2.1.5.tar.gz && cd openmpi-2.1.5
+    wget https://download.open-mpi.org/release/open-mpi/v3.0/openmpi-3.0.0.tar.gz
+    tar -zxf openmpi-3.0.0.tar.gz && cd openmpi-3.0.0
     rm -rf build && mkdir build && cd build
     ../configure CC=gcc CXX=g++ FC=gfortran
     make && make install
