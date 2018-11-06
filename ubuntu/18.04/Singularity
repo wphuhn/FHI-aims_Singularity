@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ubuntu:latest
+From: ubuntu:18.04
 
 %help
     Test container for the full-potential, all-electron FHI-aims electronic
