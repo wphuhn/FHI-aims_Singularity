@@ -13,30 +13,46 @@ From: centos:7.5.1804
     /opt/FHI-aims/bin/aims.scalapack.mpi.x
 
 %post
+    # Install needed packages
+    yum update -y
+    yum install -y \
+        gcc \
+        gcc-c++ \
+        git \
+        gmp-devel \
+        libmpc-devel \
+        make \
+        mpfr-devel \
+        wget
 
     # Download the FHI-aims source code
     # This step requires user authentication, so do it as soon as possible
-    yum update -y
-    yum install -y git
     # As a security measure, we hardwire the known-good host public key here
     echo 'aims-git.rz-berlin.mpg.de,141.14.177.25 ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAGjz5fWz7iYO3Y+t/Bo32mVYTO3jFsyHe9L5+6Wr+LGREPN1G0dGDh8nYgsVSDV82M4NHOzRkmrDtw37vkGXIouKABJ2f5XkNgk+xyGdgVf3Bdt7P8AU2bTKY9kXpglSm6OHwOyJqDSHDXSuJNZfKrhWyhZIJsQ0D/l0KxAdy5Cy5eVXg==' >> /etc/ssh/ssh_known_hosts
     cd /opt
     rm -rf FHI-aims && mkdir FHI-aims && cd FHI-aims
     git clone https://aims-git.rz-berlin.mpg.de/aims/FHIaims.git src
 
+    # Download and install GCC from source
+    # FHI-aims requires GCC 4.9.0+, but CentOS 7.5 provides GCC 4.8.5
+    cd /tmp
+    wget https://mirrors.kernel.org/gnu/gcc/gcc-7.1.0/gcc-7.1.0.tar.gz
+    rm -rf gcc-7.1.0 && mkdir gcc-7.1.0 && cd gcc-7.1.0
+    tar -zxf ../gcc-7.1.0.tar.gz && mv gcc-7.1.0 src
+    mkdir build && cd build
+    ../src/configure --disable-multilib
+    make -j && make install
+    echo "/usr/local/lib64/" >> /etc/ld.so.conf && ldconfig
+    rm -rf /tmp/gcc-7.1.0.tar.gz /tmp/gcc-7.1.0
+
     # Download and install Open MPI from source
-    yum install -y wget \
-        make \
-        gcc \
-        gcc-c++ \
-        gcc-gfortran
     cd /tmp
     wget https://download.open-mpi.org/release/open-mpi/v3.0/openmpi-3.0.0.tar.gz
     tar -zxf openmpi-3.0.0.tar.gz && cd openmpi-3.0.0
     rm -rf build && mkdir build && cd build
     ../configure CC=gcc CXX=g++ FC=gfortran
     make && make install
-
+    rm -rf /tmp/openmpi-3.0.0.tar.gz /tmp/openmpi-3.0.0
 
     # Install Intel MKL 2019 from repo (which circumvents licensing)
     # These steps were taken from https://software.intel.com/en-us/articles/installing-intel-free-libs-and-python-yum-repo
