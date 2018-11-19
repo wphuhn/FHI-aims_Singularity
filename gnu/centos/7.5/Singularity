@@ -1,0 +1,112 @@
+Bootstrap: docker
+From: centos:7.5.1804
+
+%help
+    Test container for the full-potential, all-electron FHI-aims electronic
+    structure package.
+
+%labels
+    MAINTAINER William Huhn (william.paul.huhn@gmail.com)
+    VERSION Stupid-User-Version
+
+%runscript
+    /opt/FHI-aims/bin/aims.scalapack.mpi.x
+
+%post
+    # Install needed packages
+    yum update -y
+    yum install -y \
+        gcc \
+        gcc-c++ \
+        git \
+        gmp-devel \
+        libmpc-devel \
+        make \
+        mpfr-devel \
+        wget
+
+    # Download the FHI-aims source code
+    # This step requires user authentication, so do it as soon as possible
+    # As a security measure, we hardwire the known-good host public key here
+    echo 'aims-git.rz-berlin.mpg.de,141.14.177.25 ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAGjz5fWz7iYO3Y+t/Bo32mVYTO3jFsyHe9L5+6Wr+LGREPN1G0dGDh8nYgsVSDV82M4NHOzRkmrDtw37vkGXIouKABJ2f5XkNgk+xyGdgVf3Bdt7P8AU2bTKY9kXpglSm6OHwOyJqDSHDXSuJNZfKrhWyhZIJsQ0D/l0KxAdy5Cy5eVXg==' >> /etc/ssh/ssh_known_hosts
+    cd /opt
+    rm -rf FHI-aims && mkdir FHI-aims && cd FHI-aims
+    git clone https://aims-git.rz-berlin.mpg.de/aims/FHIaims.git src
+
+    # Download and install GCC from source
+    # FHI-aims requires GCC 4.9.0+, but CentOS 7.5 provides GCC 4.8.5
+    cd /tmp
+    wget https://mirrors.kernel.org/gnu/gcc/gcc-7.1.0/gcc-7.1.0.tar.gz
+    rm -rf gcc-7.1.0 && mkdir gcc-7.1.0 && cd gcc-7.1.0
+    tar -zxf ../gcc-7.1.0.tar.gz && mv gcc-7.1.0 src
+    mkdir build && cd build
+    ../src/configure --disable-multilib
+    make -j && make install
+    echo "/usr/local/lib64/" >> /etc/ld.so.conf && ldconfig
+    rm -rf /tmp/gcc-7.1.0.tar.gz /tmp/gcc-7.1.0
+
+    # Download and install Open MPI from source
+    cd /tmp
+    wget https://download.open-mpi.org/release/open-mpi/v3.0/openmpi-3.0.0.tar.gz
+    tar -zxf openmpi-3.0.0.tar.gz && cd openmpi-3.0.0
+    rm -rf build && mkdir build && cd build
+    ../configure CC=gcc CXX=g++ FC=gfortran
+    make -j && make install
+    ldconfig
+    rm -rf /tmp/openmpi-3.0.0.tar.gz /tmp/openmpi-3.0.0
+
+    # Download and install OpenBLAS from source
+    cd /tmp
+    wget http://github.com/xianyi/OpenBLAS/archive/v0.2.20.tar.gz
+    tar -zxf v0.2.20.tar.gz && cd OpenBLAS-0.2.20/
+    make -j && make install
+    rm -rf /tmp/v0.2.20.tar.gz /tmp/OpenBLAS-0.2.20/
+
+    # Download and install NetLib ScaLAPACK from source
+    cd /tmp
+    wget http://www.netlib.org/scalapack/scalapack-2.0.2.tgz
+    tar -zxf scalapack-2.0.2.tgz && cd scalapack-2.0.2
+    cp SLmake.inc.example SLmake.inc
+    make lib
+    mkdir -p /opt/scalapack/2.0.2 && mv libscalapack.a /opt/scalapack/2.0.2/libscalapack.a
+    rm -rf /tmp/scalapack-2.0.2.tgz /tmp/scalapack-2.0.2
+
+    # Create make.sys
+    cd /opt/FHI-aims/src
+    cat <<EOF > make.sys
+###############
+# Basic Flags #
+###############
+FC            = gfortran
+FFLAGS        = -O3 -mavx -ffree-line-length-none
+F90MINFLAGS   = -O0 -ffree-line-length-none
+F90FLAGS      = -O3 -mavx -ffree-line-length-none
+LAPACKBLAS    = /opt/OpenBLAS/lib/libopenblas.a
+
+#########################
+# Parallelization Flags #
+#########################
+USE_MPI       = yes
+MPIFC         = mpif90
+SCALAPACK     = /opt/scalapack/2.0.2/libscalapack.a
+
+################
+# C, C++ Flags #
+################
+USE_C_FILES   = yes
+CC            = gcc
+CXX           = g++
+CCFLAGS       = -O3 -mavx
+CXXFLAGS      = -O3 -mavx
+
+############################
+# Optional C Library Flags #
+############################
+USE_LIBXC     = yes
+USE_SPGLIB    = yes
+EOF
+
+    # Finally, compile FHI-aims
+    make -j scalapack.mpi
+    make clean
+    cd /opt/FHI-aims/bin && mv aims*.scalapack.mpi.x aims.scalapack.mpi.x
