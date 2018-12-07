@@ -20,12 +20,16 @@ Note that building Singularity containers requires superusers privileges on the
 local machine; please see the Singularity documentation for more information.
 
 Because FHI-aims is a proprietary code, you will be required to specify your
-user name and password to clone the FHI-aims git repo while the container is
-being built.  This step occurs near the beginning of the container build
-process, and after this step the build process will continue automatically until
-completion.
 
-When the build process is finished, an `fhi-aims.simg` file containing an
+user name and an access token to clone the FHI-aims git repo while the
+container is being built.  To generate the access token, log into the
+git repo, visit [Access
+Tokens](https://aims-git.rz-berlin.mpg.de/profile/personal_access_tokens),
+select `api` under Scopes and generate the token.  This step occurs
+near the beginning of the container build process, and after this step
+the build process will continue automatically until completion.
+
+When the build process is finished, an `fhi-aims.simg` file containing a
 Singularity container with an up-to-date FHI-aims version will be present in the
 current working directory.
 
