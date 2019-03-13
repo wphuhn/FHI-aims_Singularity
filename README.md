@@ -27,6 +27,13 @@ select `api` under Scopes and generate the token.  This step occurs
 near the beginning of the container build process, and after this step
 the build process will continue automatically until completion.
 
+Whenever possible, we pull packages from the repos of the container's OS.
+Nevertheless, certain Singularity recipes may use the `%files` section of the
+Singularity build system to pass files from the host OS to the container, e.g.
+a tarball containing the installation files for proprietary compilers.  This
+requires that the user provide additional files as part of the build process.
+Please check the recipes for additional information.
+
 When the build process is finished, an `fhi-aims.simg` file containing a
 Singularity container with an up-to-date FHI-aims version will be present in the
 current working directory.

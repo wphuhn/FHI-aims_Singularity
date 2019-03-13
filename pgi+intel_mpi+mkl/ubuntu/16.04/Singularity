@@ -1,0 +1,143 @@
+Bootstrap: docker
+From: ubuntu:16.04
+
+%help
+    Test container for the full-potential, all-electron FHI-aims electronic
+    structure package.
+
+%labels
+    MAINTAINER William Huhn (william.paul.huhn@gmail.com)
+    VERSION Stupid-User-Version
+
+%files
+    pgilinux-2018-1810-x86-64.tar.gz
+
+%runscript
+    /opt/FHI-aims/bin/aims.scalapack.mpi.x
+
+%environment
+    export COMPILERVARS_ARCHITECTURE=intel64
+    export COMPILERVARS_PLATFORM=linux
+    . /opt/intel/bin/compilervars.sh
+
+%post
+    # Download the packages we'll need from the Ubuntu repos
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        apt-transport-https \
+        ca-certificates \
+        g++ \
+        gcc \
+        gfortran \
+        git \
+        gnupg \
+        make \
+        man \
+        openssh-client \
+        wget
+    rm -rf /var/lib/apt/lists/*
+
+    # Download the FHI-aims source code
+    # This step requires user authentication, so do it as soon as possible
+    # As a security measure, we hardwire the known-good host public key here
+    echo 'aims-git.rz-berlin.mpg.de,141.14.177.25 ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAGjz5fWz7iYO3Y+t/Bo32mVYTO3jFsyHe9L5+6Wr+LGREPN1G0dGDh8nYgsVSDV82M4NHOzRkmrDtw37vkGXIouKABJ2f5XkNgk+xyGdgVf3Bdt7P8AU2bTKY9kXpglSm6OHwOyJqDSHDXSuJNZfKrhWyhZIJsQ0D/l0KxAdy5Cy5eVXg==' >> /etc/ssh/ssh_known_hosts
+    cd /opt
+    rm -rf FHI-aims && mkdir FHI-aims && cd FHI-aims
+    git clone https://aims-git.rz-berlin.mpg.de/aims/FHIaims.git src
+
+    # Install a barebones version of PGI 18.10 Community Edition using a
+    # user-provided tarball.  This can be downloaded from the PGI website
+    # (https://www.pgroup.com/products/community.htm) for free.
+    cd /tmp
+    rm -rf pgi && mkdir pgi && cd pgi
+    tar -zxf /pgilinux-2018-1810-x86-64.tar.gz
+    export PGI_SILENT=true
+    export PGI_ACCEPT_EULA=accept
+    export PGI_INSTALL_DIR=/opt/pgi
+    export PGI_INSTALL_TYPE=single
+    export PGI_INSTALL_NVIDIA=false
+    export PGI_INSTALL_AMD=false
+    export PGI_INSTALL_JAVA=false
+    export PGI_INSTALL_MPI=false
+    export PGI_MPI_GPU_SUPPORT=false
+    ./install
+    export PGI=/opt/pgi
+    export PATH=${PGI}/linux86-64/18.10/bin:${PATH}
+    export MANPATH=$MANPATH:${PGI}i/linux86-64/18.10/man
+    export LM_LICENSE_FILE=${LM_LICENSE_FILE}:${PGI}/license.dat;
+    rm -rf /tmp/pgi
+
+    # Install Intel's GPG key for their apt repository
+    wget --no-check-certificate -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB | apt-key add -
+
+    # Install Intel MPI 2019 from repo (which circumvents licensing)
+    # These steps were taken from https://software.intel.com/en-us/articles/installing-intel-free-libs-and-python-apt-repo
+    sh -c 'echo deb https://apt.repos.intel.com/mpi all main > /etc/apt/sources.list.d/intel-mpi.list'
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        intel-mpi-2019.3-062
+    export COMPILERVARS_ARCHITECTURE=intel64
+    export COMPILERVARS_PLATFORM=linux
+    . /opt/intel/bin/compilervars.sh
+    export I_MPI_F90=pgfortran
+    ldconfig
+    rm -rf /var/lib/apt/lists/*
+
+    # Install Intel MKL 2019 from repo (which circumvents licensing)
+    # These steps were taken from https://software.intel.com/en-us/articles/installing-intel-free-libs-and-python-apt-repo
+    sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list'
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        intel-mkl-64bit-2019.3-062
+    export MKLROOT=/opt/intel/mkl/
+    rm -rf /var/lib/apt/lists/*
+
+    # Create make.sys
+    cd /opt/FHI-aims/src
+    cat <<EOF > make.sys
+###############
+# Basic Flags #
+###############
+FC            = pgfortran
+FFLAGS        = -fast -O3 -Bstatic_pgi
+F90MINFLAGS   = -O0 -Bstatic_pgi
+F90FLAGS      = -fast -O3 -Bstatic_pgi
+LAPACKBLAS    = ${MKLROOT}/lib/intel64/libmkl_scalapack_lp64.a \
+                -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
+                              ${MKLROOT}/lib/intel64/libmkl_sequential.a \
+                              ${MKLROOT}/lib/intel64/libmkl_core.a \
+                              ${MKLROOT}/lib/intel64/libmkl_blacs_intelmpi_lp64.a \
+                -Wl,--end-group -lpthread -lm -ldl
+
+#########################
+# Parallelization Flags #
+#########################
+USE_MPI       = yes
+MPIFC         = mpif90
+SCALAPACK     = ${MKLROOT}/lib/intel64/libmkl_scalapack_lp64.a \
+                -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
+                              ${MKLROOT}/lib/intel64/libmkl_sequential.a \
+                              ${MKLROOT}/lib/intel64/libmkl_core.a \
+                              ${MKLROOT}/lib/intel64/libmkl_blacs_intelmpi_lp64.a \
+                -Wl,--end-group -lpthread -lm -ldl
+
+################
+# C, C++ Flags #
+################
+USE_C_FILES   = yes
+CC            = pgcc
+CXX           = pgc++
+CCFLAGS       = -fast -O3 -Bstatic_pgi
+CXXFLAGS      = -fast -O3 -Bstatic_pgi
+
+############################
+# Optional C Library Flags #
+############################
+USE_LIBXC     = yes
+USE_SPGLIB    = yes
+EOF
+
+    # Finally, compile FHI-aims
+    make -j scalapack.mpi
+    make clean
+    cd /opt/FHI-aims/bin && mv aims*.scalapack.mpi.x aims.scalapack.mpi.x
