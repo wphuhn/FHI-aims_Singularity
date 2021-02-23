@@ -1,5 +1,8 @@
 # FHI-aims Singularity Container Recipes #
 
+NOTE:  THIS REPO IS NO LONGER MAINTAINED.  PLEASE REFER TO 
+<https://github.com/wphuhn/container-recipes> FOR UPDATED RECIPES!
+
 This repo contains Singularity container recipes intended for building FHI-aims,
 an efficient, accurate all-electron, full-potential electronic structure code
 package for computational molecular and materials science.  For more
